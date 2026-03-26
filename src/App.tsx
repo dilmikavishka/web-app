@@ -7,8 +7,7 @@ import Home from './pages/Home';
 import Users from './pages/Users';
 import Books from './pages/Books';
 import Rentals from './pages/Rentals';
-import SignUp from './pages/SignUp';
-import SignIn from './pages/SignIn';
+
 
 
 const theme = createTheme({
@@ -57,8 +56,6 @@ function App() {
                     <Route path="/users" element={<Users />} />
                     <Route path="/books" element={<Books />} />
                     <Route path="/rentals" element={<Rentals />} />
-                    <Route path="/signup" element={<SignUp />} />
-                    <Route path="/signin" element={<SignIn />} />
                 </Routes>
             </Router>
         </ThemeProvider>

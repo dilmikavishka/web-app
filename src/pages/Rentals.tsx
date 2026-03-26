@@ -28,7 +28,8 @@ import {
     Card,
     CardContent,
     useTheme,
-    useMediaQuery
+    useMediaQuery,
+    CircularProgress
 } from '@mui/material';
 import {
     History as HistoryIcon,
@@ -36,61 +37,59 @@ import {
     MenuBook as BookIcon,
     Add as AddIcon,
     Close as CloseIcon,
-    Event as EventIcon
+    Event as EventIcon,
+    Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import LoadingSpinner from '../components/LoadingSpinner';
 import type { Rental, User, Book } from '../types';
-import axios from "axios";
+import {
+    getAllRentals,
+    createRental,
+    updateRental
+} from '../service/rentalService';
+import { getAllUsers } from '../service/userService';
+import { getAllBooks } from '../service/bookService';
 
-// Sample Data
-const SAMPLE_USERS = [
-    { id: 1, name: "Dilmi Perera", email: "dilmi@library.com" },
-    { id: 2, name: "Kasun Silva", email: "kasun@library.com" },
-    { id: 3, name: "Nimali Jayawardena", email: "nimali@library.com" },
+// Sample Data (Backend API නැත්නම් මේක පෙන්වයි)
+const SAMPLE_USERS: User[] = [
+    { id: "69c246eee716b4a3d190639f", name: "Dilmi Perera", address: "Colombo", phoneNumber: "0771234567" },
+    { id: "69c246eee716b4a3d190640a", name: "Kasun Silva", address: "Kandy", phoneNumber: "0712345678" },
+    { id: "69c246eee716b4a3d190641b", name: "Nimali Jayawardena", address: "Galle", phoneNumber: "0763456789" },
 ];
 
-const SAMPLE_BOOKS = [
-    { id: "1", title: "Java Basics", author: "John Doe", price: 500 },
-    { id: "2", title: "Spring Boot Guide", author: "Jane Smith", price: 750 },
-    { id: "3", title: "React Handbook", author: "Mike Johnson", price: 600 },
+const SAMPLE_BOOKS: Book[] = [
+    { id: 1, title: "Microservices Architectures", author: "Martin Fowler", imageUrl: "" },
+    { id: 2, title: "Java Programming", author: "Joshua Bloch", imageUrl: "" },
+    { id: 3, title: "Spring Boot in Action", author: "Craig Walls", imageUrl: "" },
 ];
 
 const SAMPLE_RENTALS: Rental[] = [
     {
-        id: 1,
-        userId: 1,
-        bookId: "1",
-        rentDate: "2026-03-15T10:30:00Z",
-        status: 'active'
+        rentalId: 1,
+        userId: "69c246eee716b4a3d190639f",
+        bookId: 1,
+        date: "2026-03-25",
+        status: "RENTED",
+        user: SAMPLE_USERS[0],
+        book: SAMPLE_BOOKS[0]
     },
     {
-        id: 2,
-        userId: 2,
-        bookId: "2",
-        rentDate: "2026-03-16T14:20:00Z",
-        status: 'active'
+        rentalId: 2,
+        userId: "69c246eee716b4a3d190640a",
+        bookId: 2,
+        date: "2026-03-24",
+        status: "RENTED",
+        user: SAMPLE_USERS[1],
+        book: SAMPLE_BOOKS[1]
     },
     {
-        id: 3,
-        userId: 1,
-        bookId: "3",
-        rentDate: "2026-03-14T09:15:00Z",
-        status: 'returned'
-    },
-    {
-        id: 4,
-        userId: 3,
-        bookId: "1",
-        rentDate: "2026-03-16T11:45:00Z",
-        status: 'active'
-    },
-    {
-        id: 5,
-        userId: 2,
-        bookId: "3",
-        rentDate: "2026-03-13T16:30:00Z",
-        status: 'returned'
+        rentalId: 3,
+        userId: "69c246eee716b4a3d190639f",
+        bookId: 3,
+        date: "2026-03-23",
+        status: "RETURNED",
+        user: SAMPLE_USERS[0],
+        book: SAMPLE_BOOKS[2]
     },
 ];
 
@@ -108,7 +107,9 @@ const Rentals = () => {
 
     // Dialog state
     const [openDialog, setOpenDialog] = useState(false);
-    const [formData, setFormData] = useState({ userId: '', bookId: '' });
+    const [selectedUserId, setSelectedUserId] = useState('');
+    const [selectedBookId, setSelectedBookId] = useState<number | ''>('');
+    const [submitting, setSubmitting] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
     useEffect(() => {
@@ -119,15 +120,15 @@ const Rentals = () => {
         setLoading(true);
         try {
             // Try API first
-            const [rentalsRes, usersRes, booksRes] = await Promise.all([
-                axios.get('http://localhost:8080/rentals').catch(() => ({ data: SAMPLE_RENTALS })),
-                axios.get('http://localhost:8080/users').catch(() => ({ data: SAMPLE_USERS })),
-                axios.get('http://localhost:8080/books').catch(() => ({ data: SAMPLE_BOOKS })),
+            const [rentalsData, usersData, booksData] = await Promise.all([
+                getAllRentals().catch(() => SAMPLE_RENTALS),
+                getAllUsers().catch(() => SAMPLE_USERS),
+                getAllBooks().catch(() => SAMPLE_BOOKS),
             ]);
 
-            setRentals(rentalsRes.data || SAMPLE_RENTALS);
-            setUsers(usersRes.data || SAMPLE_USERS);
-            setBooks(booksRes.data || SAMPLE_BOOKS);
+            setRentals(rentalsData);
+            setUsers(usersData);
+            setBooks(booksData);
         } catch (error) {
             console.log('Using sample rental data');
             setRentals(SAMPLE_RENTALS);
@@ -139,68 +140,136 @@ const Rentals = () => {
     };
 
     const handleOpenAddDialog = () => {
-        setFormData({ userId: '', bookId: '' });
+        setSelectedUserId('');
+        setSelectedBookId('');
         setOpenDialog(true);
     };
 
     const handleCloseDialog = () => {
         setOpenDialog(false);
-        setFormData({ userId: '', bookId: '' });
+        setSelectedUserId('');
+        setSelectedBookId('');
+        setSubmitting(false);
     };
 
     const handleSubmit = async () => {
+        if (!selectedUserId || !selectedBookId) {
+            setSnackbar({ open: true, message: 'Please select both user and book', severity: 'error' });
+            return;
+        }
+
+        setSubmitting(true);
         try {
-            const newRental: Rental = {
-                id: rentals.length + 1,
-                userId: Number(formData.userId),
-                bookId: formData.bookId,
-                rentDate: new Date().toISOString(),
-                status: 'active'
+            const today = new Date().toISOString().split('T')[0];
+
+            const rentalData = {
+                userId: selectedUserId,
+                bookId: selectedBookId as number,
+                date: today,
+                status: "RENTED"
             };
+
+            console.log('Creating rental with data:', rentalData);
+
+            const newRental = await createRental(rentalData);
 
             setRentals([newRental, ...rentals]);
             setSnackbar({ open: true, message: 'Book rented successfully!', severity: 'success' });
             handleCloseDialog();
-        } catch (error) {
-            setSnackbar({ open: true, message: 'Failed to rent book!', severity: 'error' });
+        } catch (error: any) {
+            console.error('Rental error:', error);
+            let errorMsg = 'Failed to rent book!';
+
+            if (error.response?.data) {
+                const errorData = error.response.data;
+                if (errorData.detail) {
+                    errorMsg = errorData.detail;
+                } else if (errorData.message) {
+                    errorMsg = errorData.message;
+                }
+            } else if (error.message) {
+                errorMsg = error.message;
+            }
+
+            setSnackbar({ open: true, message: errorMsg, severity: 'error' });
+        } finally {
+            setSubmitting(false);
         }
     };
 
-    const handleReturnBook = async (rentalId: number) => {
-        if (window.confirm('Mark this book as returned?')) {
+    const handleReturnBook = async (rental: Rental) => {
+        const bookTitle = rental.book?.title || getBookTitle(rental.bookId);
+        if (window.confirm(`Return "${bookTitle}" to library?`)) {
             try {
-                const updatedRentals = rentals.map(rental =>
-                    rental.id === rentalId ? { ...rental, status: 'returned' as const } : rental
-                );
-                setRentals(updatedRentals);
-                setSnackbar({ open: true, message: 'Book returned successfully!', severity: 'success' });
-            } catch (error) {
-                setSnackbar({ open: true, message: 'Failed to return book!', severity: 'error' });
+                // Send full rental data with status changed to RETURNED
+                const updatedData = {
+                    userId: rental.userId,
+                    bookId: rental.bookId,
+                    date: rental.date,
+                    status: "RETURNED"
+                };
+
+                console.log('Returning book with data:', updatedData);
+
+                const updatedRental = await updateRental(rental.rentalId, updatedData);
+
+                setRentals(rentals.map(r =>
+                    r.rentalId === rental.rentalId ? updatedRental : r
+                ));
+
+                setSnackbar({
+                    open: true,
+                    message: `"${bookTitle}" returned successfully!`,
+                    severity: 'success'
+                });
+            } catch (error: any) {
+                console.error('Return error:', error);
+                let errorMsg = 'Failed to return book!';
+
+                if (error.response?.data) {
+                    const errorData = error.response.data;
+                    if (errorData.detail) {
+                        errorMsg = errorData.detail;
+                    } else if (errorData.message) {
+                        errorMsg = errorData.message;
+                    }
+                } else if (error.message) {
+                    errorMsg = error.message;
+                }
+
+                setSnackbar({ open: true, message: errorMsg, severity: 'error' });
             }
         }
     };
 
-    const getUserName = (userId: number) => {
+    const getUserName = (userId: string) => {
         const user = users.find(u => u.id === userId);
         return user ? user.name : 'Unknown';
     };
 
-    const getBookTitle = (bookId: string) => {
+    const getBookTitle = (bookId: number) => {
         const book = books.find(b => b.id === bookId);
         return book ? book.title : 'Unknown';
     };
 
-    const getBookAuthor = (bookId: string) => {
+    const getBookAuthor = (bookId: number) => {
         const book = books.find(b => b.id === bookId);
         return book ? book.author : 'Unknown';
     };
 
     const filteredRentals = rentals
-        .filter(rental => filterUser === 'all' || rental.userId === Number(filterUser))
+        .filter(rental => filterUser === 'all' || rental.userId === filterUser)
         .filter(rental => filterStatus === 'all' || rental.status === filterStatus)
-        .sort((a, b) => new Date(b.rentDate).getTime() - new Date(a.rentDate).getTime());
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    if (loading) return <LoadingSpinner />;
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <CircularProgress sx={{ color: '#ff6b35' }} />
+                <Typography sx={{ ml: 2, color: '#ff6b35' }}>Loading rentals...</Typography>
+            </Box>
+        );
+    }
 
     return (
         <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -218,7 +287,7 @@ const Rentals = () => {
                     gap: 2,
                     mb: 4
                 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 600, color: 'rgba(255,107,53,0.66)' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 600, color: '#ff6b35' }}>
                          Rental Management
                     </Typography>
 
@@ -227,6 +296,21 @@ const Rentals = () => {
                         flexDirection: isMobile ? 'column' : 'row',
                         gap: 2
                     }}>
+                        <Button
+                            variant="outlined"
+                            startIcon={<RefreshIcon />}
+                            onClick={fetchData}
+                            sx={{
+                                borderColor: '#ff6b35',
+                                color: '#ff6b35',
+                                '&:hover': {
+                                    borderColor: '#e54b1a',
+                                    backgroundColor: 'rgba(255, 107, 53, 0.05)',
+                                }
+                            }}
+                        >
+                            Refresh
+                        </Button>
                         <Button
                             variant="contained"
                             startIcon={<AddIcon />}
@@ -261,7 +345,9 @@ const Rentals = () => {
                                 >
                                     <MenuItem value="all">All Users</MenuItem>
                                     {users.map(user => (
-                                        <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
+                                        <MenuItem key={user.id} value={user.id}>
+                                            {user.name}
+                                        </MenuItem>
                                     ))}
                                 </Select>
                             </FormControl>
@@ -280,8 +366,8 @@ const Rentals = () => {
                                     }}
                                 >
                                     <MenuItem value="all">All Status</MenuItem>
-                                    <MenuItem value="active">Active</MenuItem>
-                                    <MenuItem value="returned">Returned</MenuItem>
+                                    <MenuItem value="RENTED">Rented</MenuItem>
+                                    <MenuItem value="RETURNED">Returned</MenuItem>
                                 </Select>
                             </FormControl>
                         </Grid>
@@ -292,7 +378,7 @@ const Rentals = () => {
                 {(isMobile || isTablet) ? (
                     <Grid container spacing={2}>
                         {filteredRentals.map((rental, index) => (
-                            <Grid item xs={12} key={rental.id}>
+                            <Grid item xs={12} key={rental.rentalId}>
                                 <motion.div
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -300,22 +386,13 @@ const Rentals = () => {
                                 >
                                     <Card sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(255, 107, 53, 0.1)' }}>
                                         <CardContent>
-                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                                                 <Chip
-                                                    label={`#${rental.id}`}
+                                                    label={rental.status === 'RENTED' ? 'Rented' : 'Returned'}
                                                     size="small"
                                                     sx={{
-                                                        color: '#ff6b35',
-                                                        borderColor: '#ff6b35',
-                                                    }}
-                                                    variant="outlined"
-                                                />
-                                                <Chip
-                                                    label={rental.status === 'active' ? 'Active' : 'Returned'}
-                                                    size="small"
-                                                    sx={{
-                                                        bgcolor: rental.status === 'active' ? '#e8f5e8' : '#ffebee',
-                                                        color: rental.status === 'active' ? '#2e7d32' : '#c62828',
+                                                        bgcolor: rental.status === 'RENTED' ? '#e8f5e8' : '#ffebee',
+                                                        color: rental.status === 'RENTED' ? '#2e7d32' : '#c62828',
                                                         fontWeight: 500
                                                     }}
                                                 />
@@ -324,7 +401,7 @@ const Rentals = () => {
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                                 <PersonIcon sx={{ color: '#ff6b35', fontSize: 20 }} />
                                                 <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                                    {getUserName(rental.userId)}
+                                                    {rental.user?.name || getUserName(rental.userId)}
                                                 </Typography>
                                             </Box>
 
@@ -332,10 +409,10 @@ const Rentals = () => {
                                                 <BookIcon sx={{ color: '#ff6b35', fontSize: 20 }} />
                                                 <Box>
                                                     <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                                        {getBookTitle(rental.bookId)}
+                                                        {rental.book?.title || getBookTitle(rental.bookId)}
                                                     </Typography>
                                                     <Typography variant="caption" color="text.secondary">
-                                                        by {getBookAuthor(rental.bookId)}
+                                                        by {rental.book?.author || getBookAuthor(rental.bookId)}
                                                     </Typography>
                                                 </Box>
                                             </Box>
@@ -343,22 +420,20 @@ const Rentals = () => {
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                                                 <EventIcon sx={{ color: '#ff6b35', fontSize: 20 }} />
                                                 <Typography variant="body2" color="text.secondary">
-                                                    {new Date(rental.rentDate).toLocaleDateString('en-US', {
+                                                    {new Date(rental.date).toLocaleDateString('en-US', {
                                                         year: 'numeric',
                                                         month: 'short',
-                                                        day: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
+                                                        day: 'numeric'
                                                     })}
                                                 </Typography>
                                             </Box>
 
-                                            {rental.status === 'active' && (
+                                            {rental.status === 'RENTED' && (
                                                 <Button
                                                     fullWidth
                                                     variant="outlined"
                                                     size="small"
-                                                    onClick={() => handleReturnBook(rental.id)}
+                                                    onClick={() => handleReturnBook(rental)}
                                                     sx={{
                                                         borderColor: '#ff6b35',
                                                         color: '#ff6b35',
@@ -387,7 +462,6 @@ const Rentals = () => {
                         <Table>
                             <TableHead sx={{ background: 'linear-gradient(135deg, #ff6b35 0%, #e54b1a 100%)' }}>
                                 <TableRow>
-                                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>ID</TableCell>
                                     <TableCell sx={{ color: 'white', fontWeight: 600 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <PersonIcon /> User
@@ -400,7 +474,7 @@ const Rentals = () => {
                                     </TableCell>
                                     <TableCell sx={{ color: 'white', fontWeight: 600 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <HistoryIcon /> Rent Date
+                                            <EventIcon /> Rent Date
                                         </Box>
                                     </TableCell>
                                     <TableCell sx={{ color: 'white', fontWeight: 600 }}>Status</TableCell>
@@ -410,22 +484,11 @@ const Rentals = () => {
                             <TableBody>
                                 {filteredRentals.map((rental, index) => (
                                     <motion.tr
-                                        key={rental.id}
+                                        key={rental.rentalId}
                                         initial={{ opacity: 0, x: -20 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: index * 0.05 }}
                                     >
-                                        <TableCell>
-                                            <Chip
-                                                label={`#${rental.id}`}
-                                                size="small"
-                                                sx={{
-                                                    color: '#ff6b35',
-                                                    borderColor: '#ff6b35',
-                                                }}
-                                                variant="outlined"
-                                            />
-                                        </TableCell>
                                         <TableCell>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                 <Avatar sx={{
@@ -434,11 +497,11 @@ const Rentals = () => {
                                                     height: 32,
                                                     fontSize: '0.875rem'
                                                 }}>
-                                                    {getUserName(rental.userId).charAt(0)}
+                                                    {(rental.user?.name || getUserName(rental.userId)).charAt(0)}
                                                 </Avatar>
                                                 <Box>
                                                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                        {getUserName(rental.userId)}
+                                                        {rental.user?.name || getUserName(rental.userId)}
                                                     </Typography>
                                                 </Box>
                                             </Box>
@@ -446,42 +509,40 @@ const Rentals = () => {
                                         <TableCell>
                                             <Box>
                                                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                    {getBookTitle(rental.bookId)}
+                                                    {rental.book?.title || getBookTitle(rental.bookId)}
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary">
-                                                    by {getBookAuthor(rental.bookId)}
+                                                    by {rental.book?.author || getBookAuthor(rental.bookId)}
                                                 </Typography>
                                             </Box>
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2">
-                                                {new Date(rental.rentDate).toLocaleDateString('en-US', {
+                                                {new Date(rental.date).toLocaleDateString('en-US', {
                                                     year: 'numeric',
                                                     month: 'short',
-                                                    day: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
+                                                    day: 'numeric'
                                                 })}
                                             </Typography>
                                         </TableCell>
                                         <TableCell>
                                             <Chip
-                                                label={rental.status === 'active' ? 'Active' : 'Returned'}
+                                                label={rental.status === 'RENTED' ? 'Rented' : 'Returned'}
                                                 size="small"
                                                 sx={{
-                                                    bgcolor: rental.status === 'active' ? '#e8f5e8' : '#ffebee',
-                                                    color: rental.status === 'active' ? '#2e7d32' : '#c62828',
+                                                    bgcolor: rental.status === 'RENTED' ? '#e8f5e8' : '#ffebee',
+                                                    color: rental.status === 'RENTED' ? '#2e7d32' : '#c62828',
                                                     fontWeight: 500,
                                                     minWidth: 80
                                                 }}
                                             />
                                         </TableCell>
                                         <TableCell>
-                                            {rental.status === 'active' && (
+                                            {rental.status === 'RENTED' && (
                                                 <Button
                                                     size="small"
                                                     variant="outlined"
-                                                    onClick={() => handleReturnBook(rental.id)}
+                                                    onClick={() => handleReturnBook(rental)}
                                                     sx={{
                                                         borderColor: '#ff6b35',
                                                         color: '#ff6b35',
@@ -546,15 +607,14 @@ const Rentals = () => {
                         <FormControl fullWidth sx={{ mb: 2, mt: 1 }}>
                             <InputLabel>Select User</InputLabel>
                             <Select
-                                name="userId"
-                                value={formData.userId}
+                                value={selectedUserId}
                                 label="Select User"
-                                onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                                onChange={(e) => setSelectedUserId(e.target.value)}
                                 required
                             >
                                 {users.map(user => (
                                     <MenuItem key={user.id} value={user.id}>
-                                        {user.name} ({user.email})
+                                        {user.name}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -563,15 +623,14 @@ const Rentals = () => {
                         <FormControl fullWidth sx={{ mb: 2 }}>
                             <InputLabel>Select Book</InputLabel>
                             <Select
-                                name="bookId"
-                                value={formData.bookId}
+                                value={selectedBookId}
                                 label="Select Book"
-                                onChange={(e) => setFormData({ ...formData, bookId: e.target.value })}
+                                onChange={(e) => setSelectedBookId(e.target.value as number)}
                                 required
                             >
                                 {books.map(book => (
                                     <MenuItem key={book.id} value={book.id}>
-                                        {book.title} by {book.author} - LKR {book.price}
+                                        {book.title} by {book.author}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -582,15 +641,18 @@ const Rentals = () => {
                         <Button
                             onClick={handleSubmit}
                             variant="contained"
-                            disabled={!formData.userId || !formData.bookId}
+                            disabled={!selectedUserId || !selectedBookId || submitting}
                             sx={{
                                 background: 'linear-gradient(135deg, #ff6b35 0%, #e54b1a 100%)',
                                 '&:hover': {
                                     background: 'linear-gradient(135deg, #e54b1a 0%, #ff6b35 100%)',
+                                },
+                                '&.Mui-disabled': {
+                                    background: '#ccc'
                                 }
                             }}
                         >
-                            Rent Book
+                            {submitting ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Rent Book'}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -598,10 +660,11 @@ const Rentals = () => {
                 {/* Snackbar for notifications */}
                 <Snackbar
                     open={snackbar.open}
-                    autoHideDuration={3000}
+                    autoHideDuration={5000}
                     onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 >
-                    <Alert severity={snackbar.severity} sx={{ width: '100%' }}>
+                    <Alert severity={snackbar.severity} sx={{ width: '100%' }} onClose={() => setSnackbar({ ...snackbar, open: false })}>
                         {snackbar.message}
                     </Alert>
                 </Snackbar>

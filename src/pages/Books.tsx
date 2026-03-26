@@ -18,65 +18,25 @@ import {
     Alert,
     Snackbar,
     IconButton,
-    Paper
+    Paper,
+    CircularProgress
 } from '@mui/material';
 import {
     Search as SearchIcon,
     Add as AddIcon,
     CloudUpload as UploadIcon,
     Close as CloseIcon,
+    Refresh as RefreshIcon
 } from '@mui/icons-material';
-import axios from 'axios';
 import type { Book } from '../types';
 import BookCard from '../components/BookCard';
 import { motion } from 'framer-motion';
-import LoadingSpinner from '../components/LoadingSpinner';
-
-// Sample Book Data
-const SAMPLE_BOOKS: Book[] = [
-    {
-        id: "1",
-        title: "Java Basics",
-        author: "John Doe",
-        price: 500,
-        imageUrl: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=400&q=80"
-    },
-    {
-        id: "2",
-        title: "Spring Boot Guide",
-        author: "Jane Smith",
-        price: 750,
-        imageUrl: "https://images.unsplash.com/photo-1627398242454-45a1465c2479?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=400&q=80"
-    },
-    {
-        id: "3",
-        title: "React Handbook",
-        author: "Mike Johnson",
-        price: 600,
-        imageUrl: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=400&q=80"
-    },
-    {
-        id: "4",
-        title: "Python Programming",
-        author: "Sarah Wilson",
-        price: 550,
-        imageUrl: "https://images.unsplash.com/photo-1526379879527-8559ecfcaec0?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=400&q=80"
-    },
-    {
-        id: "5",
-        title: "Database Design",
-        author: "David Brown",
-        price: 650,
-        imageUrl: "https://images.unsplash.com/photo-1544383835-bda2bc66a55d?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=400&q=80"
-    },
-    {
-        id: "6",
-        title: "Microservices Architecture",
-        author: "Emily Davis",
-        price: 850,
-        imageUrl: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=400&q=80"
-    }
-];
+import {
+    getAllBooks,
+    createBook,
+    updateBook,
+    deleteBook
+} from '../service/bookService';
 
 const Books = () => {
     const [books, setBooks] = useState<Book[]>([]);
@@ -86,9 +46,12 @@ const Books = () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [dialogType, setDialogType] = useState<'add' | 'edit'>('add');
     const [currentBook, setCurrentBook] = useState<Book | null>(null);
-    const [formData, setFormData] = useState({ title: '', author: '', price: '' });
+    const [formData, setFormData] = useState({ title: '', author: '', imageUrl: '' });
+    const [formErrors, setFormErrors] = useState({ title: '', author: '' });
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string>('');
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         fetchBooks();
@@ -97,22 +60,57 @@ const Books = () => {
     const fetchBooks = async () => {
         setLoading(true);
         try {
-            // Try API first
-            const response = await axios.get('http://localhost:8080/books');
-            setBooks(response.data);
-        } catch (error) {
-            console.log('Using sample book data (API not available)');
-            // Use sample data if API fails
-            setBooks(SAMPLE_BOOKS);
+            const data = await getAllBooks();
+            console.log('Books fetched:', data);
+            setBooks(Array.isArray(data) ? data : []);
+        } catch (error: any) {
+            console.error("Failed to fetch books:", error);
+            let errorMessage = 'Failed to fetch books. ';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage += 'Backend server is not running on port 7000. Please start the backend service.';
+            } else if (error.response?.status === 404) {
+                errorMessage += 'API endpoint not found. Check if the backend is running correctly.';
+            } else if (error.response?.data?.message) {
+                errorMessage += error.response.data.message;
+            } else {
+                errorMessage += error.message || 'Unknown error occurred.';
+            }
+
+            setSnackbar({
+                open: true,
+                message: errorMessage,
+                severity: 'error'
+            });
+            setBooks([]);
         } finally {
             setLoading(false);
         }
     };
 
+    const validateForm = (): boolean => {
+        const errors = { title: '', author: '' };
+        let isValid = true;
+
+        if (!formData.title.trim()) {
+            errors.title = 'Book title is required';
+            isValid = false;
+        }
+        if (!formData.author.trim()) {
+            errors.author = 'Author name is required';
+            isValid = false;
+        }
+
+        setFormErrors(errors);
+        return isValid;
+    };
+
     const handleOpenAddDialog = () => {
         setDialogType('add');
-        setFormData({ title: '', author: '', price: '' });
+        setFormData({ title: '', author: '', imageUrl: '' });
+        setFormErrors({ title: '', author: '' });
         setSelectedImage(null);
+        setImagePreview('');
         setCurrentBook(null);
         setOpenDialog(true);
     };
@@ -123,17 +121,22 @@ const Books = () => {
         setFormData({
             title: book.title,
             author: book.author,
-            price: book.price.toString()
+            imageUrl: book.imageUrl || ''
         });
+        setFormErrors({ title: '', author: '' });
         setSelectedImage(null);
+        setImagePreview(book.imageUrl || '');
         setOpenDialog(true);
     };
 
     const handleCloseDialog = () => {
         setOpenDialog(false);
-        setFormData({ title: '', author: '', price: '' });
+        setFormData({ title: '', author: '', imageUrl: '' });
+        setFormErrors({ title: '', author: '' });
         setSelectedImage(null);
+        setImagePreview('');
         setCurrentBook(null);
+        setSubmitting(false);
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,78 +144,87 @@ const Books = () => {
             ...formData,
             [e.target.name]: e.target.value
         });
+        setFormErrors({
+            ...formErrors,
+            [e.target.name]: ''
+        });
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            setSelectedImage(e.target.files[0]);
+            const file = e.target.files[0];
+            setSelectedImage(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
         }
     };
 
     const handleSubmit = async () => {
+        if (!validateForm()) {
+            return;
+        }
+
+        setSubmitting(true);
         try {
+            const bookData = {
+                title: formData.title,
+                author: formData.author,
+                imageUrl: selectedImage ? URL.createObjectURL(selectedImage) : formData.imageUrl
+            };
+
             if (dialogType === 'add') {
-                // Add new book
-                const newBook: Book = {
-                    id: (books.length + 1).toString(),
-                    title: formData.title,
-                    author: formData.author,
-                    price: Number(formData.price),
-                    imageUrl: selectedImage
-                        ? URL.createObjectURL(selectedImage)
-                        : "https://images.unsplash.com/photo-1544947950-fa07a98d237f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=400&q=80"
-                };
-                setBooks([...books, newBook]);
+                const newBook = await createBook(bookData);
+                setBooks([newBook, ...books]);
                 setSnackbar({ open: true, message: 'Book added successfully!', severity: 'success' });
-            } else {
-                // Edit book
-                const updatedBooks = books.map(book =>
-                    book.id === currentBook?.id
-                        ? {
-                            ...book,
-                            title: formData.title,
-                            author: formData.author,
-                            price: Number(formData.price),
-                            imageUrl: selectedImage
-                                ? URL.createObjectURL(selectedImage)
-                                : book.imageUrl
-                        }
-                        : book
-                );
-                setBooks(updatedBooks);
+            } else if (currentBook) {
+                const updatedBook = await updateBook(currentBook.id, bookData);
+                setBooks(books.map(b => b.id === currentBook.id ? updatedBook : b));
                 setSnackbar({ open: true, message: 'Book updated successfully!', severity: 'success' });
             }
             handleCloseDialog();
-        } catch (error) {
-            setSnackbar({ open: true, message: 'Operation failed!', severity: 'error' });
+        } catch (error: any) {
+            const errorMsg = error?.response?.data?.message || error?.message || 'Operation failed!';
+            setSnackbar({ open: true, message: errorMsg, severity: 'error' });
+        } finally {
+            setSubmitting(false);
         }
     };
 
-    const handleDeleteBook = async (id: string) => {
+    const handleDeleteBook = async (id: number) => {
         if (window.confirm('Are you sure you want to delete this book?')) {
             try {
-                const updatedBooks = books.filter(book => book.id !== id);
-                setBooks(updatedBooks);
+                await deleteBook(id);
+                setBooks(books.filter(book => book.id !== id));
                 setSnackbar({ open: true, message: 'Book deleted successfully!', severity: 'success' });
-            } catch (error) {
-                setSnackbar({ open: true, message: 'Delete failed!', severity: 'error' });
+            } catch (error: any) {
+                const errorMsg = error?.response?.data?.message || error?.message || 'Delete failed!';
+                setSnackbar({ open: true, message: errorMsg, severity: 'error' });
             }
         }
     };
 
     const filteredBooks = books
         .filter(book =>
-            book.title.toLowerCase().includes(search.toLowerCase()) ||
-            book.author.toLowerCase().includes(search.toLowerCase())
+            book?.title?.toLowerCase().includes(search.toLowerCase()) ||
+            book?.author?.toLowerCase().includes(search.toLowerCase())
         )
         .sort((a, b) => {
             if (sortBy === 'title') return a.title.localeCompare(b.title);
-            if (sortBy === 'price') return a.price - b.price;
             if (sortBy === 'author') return a.author.localeCompare(b.author);
             return 0;
         });
 
-    if (loading) return <LoadingSpinner />;
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <CircularProgress sx={{ color: '#ff6b35' }} />
+                <Typography sx={{ ml: 2, color: '#ff6b35' }}>Loading books...</Typography>
+            </Box>
+        );
+    }
 
     return (
         <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -222,23 +234,40 @@ const Books = () => {
                 transition={{ duration: 0.5 }}
             >
                 {/* Header */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 600, color: 'rgba(255,107,53,0.66)' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+                    <Typography variant="h4" sx={{ fontWeight: 600, color: '#ff6b35' }}>
                          Book Collection
                     </Typography>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={handleOpenAddDialog}
-                        sx={{
-                            background: 'linear-gradient(135deg, #ff6b35 0%, #e54b1a 100%)',
-                            '&:hover': {
-                                background: 'linear-gradient(135deg, #e54b1a 0%, #ff6b35 100%)',
-                            }
-                        }}
-                    >
-                        Add New Book
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button
+                            variant="outlined"
+                            startIcon={<RefreshIcon />}
+                            onClick={fetchBooks}
+                            sx={{
+                                borderColor: '#ff6b35',
+                                color: '#ff6b35',
+                                '&:hover': {
+                                    borderColor: '#e54b1a',
+                                    backgroundColor: 'rgba(255, 107, 53, 0.05)',
+                                }
+                            }}
+                        >
+                            Refresh
+                        </Button>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenAddDialog}
+                            sx={{
+                                background: 'linear-gradient(135deg, #ff6b35 0%, #e54b1a 100%)',
+                                '&:hover': {
+                                    background: 'linear-gradient(135deg, #e54b1a 0%, #ff6b35 100%)',
+                                }
+                            }}
+                        >
+                            Add New Book
+                        </Button>
+                    </Box>
                 </Box>
 
                 {/* Search and Sort */}
@@ -282,7 +311,6 @@ const Books = () => {
                             >
                                 <MenuItem value="title">Title</MenuItem>
                                 <MenuItem value="author">Author</MenuItem>
-                                <MenuItem value="price">Price (Low to High)</MenuItem>
                             </Select>
                         </FormControl>
                     </Box>
@@ -295,7 +323,7 @@ const Books = () => {
                             No books found
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                            Try adjusting your search or add a new book
+                            Try adjusting your search or click "Add New Book" to create one.
                         </Typography>
                     </Paper>
                 ) : (
@@ -340,7 +368,10 @@ const Books = () => {
                             value={formData.title}
                             onChange={handleInputChange}
                             required
+                            error={!!formErrors.title}
+                            helperText={formErrors.title}
                             sx={{ mb: 2, mt: 1 }}
+                            placeholder="Enter book title"
                         />
                         <TextField
                             fullWidth
@@ -349,18 +380,28 @@ const Books = () => {
                             value={formData.author}
                             onChange={handleInputChange}
                             required
+                            error={!!formErrors.author}
+                            helperText={formErrors.author}
                             sx={{ mb: 2 }}
+                            placeholder="Enter author name"
                         />
-                        <TextField
-                            fullWidth
-                            label="Price (LKR)"
-                            name="price"
-                            type="number"
-                            value={formData.price}
-                            onChange={handleInputChange}
-                            required
-                            sx={{ mb: 2 }}
-                        />
+
+                        {/* Image Preview */}
+                        {imagePreview && (
+                            <Box sx={{ mb: 2, textAlign: 'center' }}>
+                                <img
+                                    src={imagePreview}
+                                    alt="Book cover preview"
+                                    style={{
+                                        maxWidth: '100%',
+                                        maxHeight: '150px',
+                                        objectFit: 'cover',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                            </Box>
+                        )}
+
                         <Button
                             component="label"
                             variant="outlined"
@@ -395,14 +436,18 @@ const Books = () => {
                         <Button
                             onClick={handleSubmit}
                             variant="contained"
+                            disabled={submitting}
                             sx={{
                                 background: 'linear-gradient(135deg, #ff6b35 0%, #e54b1a 100%)',
                                 '&:hover': {
                                     background: 'linear-gradient(135deg, #e54b1a 0%, #ff6b35 100%)',
+                                },
+                                '&.Mui-disabled': {
+                                    background: '#ccc'
                                 }
                             }}
                         >
-                            {dialogType === 'add' ? 'Add Book' : 'Update Book'}
+                            {submitting ? <CircularProgress size={24} sx={{ color: 'white' }} /> : (dialogType === 'add' ? 'Add Book' : 'Update Book')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -410,10 +455,11 @@ const Books = () => {
                 {/* Snackbar for notifications */}
                 <Snackbar
                     open={snackbar.open}
-                    autoHideDuration={3000}
+                    autoHideDuration={5000}
                     onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 >
-                    <Alert severity={snackbar.severity} sx={{ width: '100%' }}>
+                    <Alert severity={snackbar.severity} sx={{ width: '100%' }} onClose={() => setSnackbar({ ...snackbar, open: false })}>
                         {snackbar.message}
                     </Alert>
                 </Snackbar>

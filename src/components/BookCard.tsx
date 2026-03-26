@@ -1,4 +1,4 @@
-import { Card, CardContent, CardMedia, Typography, Chip, Box, IconButton } from '@mui/material';
+import { Card, CardContent, CardMedia, Typography, Box, IconButton } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import type { Book } from '../types';
 import { motion } from 'framer-motion';
@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 interface BookCardProps {
     book: Book;
     onEdit?: (book: Book) => void;
-    onDelete?: (id: string) => void;
+    onDelete?: (id: number) => void;
 }
 
 const BookCard = ({ book, onEdit, onDelete }: BookCardProps) => {
@@ -65,15 +65,7 @@ const BookCard = ({ book, onEdit, onDelete }: BookCardProps) => {
                     >
                         by {book.author}
                     </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Chip
-                            label={`LKR ${book.price}`}
-                            sx={{
-                                background: 'linear-gradient(135deg, #ff6b35 0%, #e54b1a 100%)',
-                                color: 'white',
-                                fontWeight: 600
-                            }}
-                        />
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                         <Box>
                             {onEdit && (
                                 <IconButton

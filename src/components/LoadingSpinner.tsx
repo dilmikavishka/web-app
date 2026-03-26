@@ -1,4 +1,4 @@
-// @ts-ignore
+
 import { Box, CircularProgress } from '@mui/material';
 import { motion } from 'framer-motion';
 

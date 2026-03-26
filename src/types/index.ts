@@ -1,22 +1,23 @@
 export interface User {
-    id: number;
+    id: string;
     name: string;
-    email: string;
+    address: string;
+    phoneNumber: string;
 }
 
 export interface Book {
-    id: string;
+    id: number;
     title: string;
     author: string;
-    price: number;
     imageUrl?: string;
 }
 
 export interface Rental {
-    id: number;
-    userId: number;
-    bookId: string;
-    rentDate: string;
-    returnDate?: string;
-    status?: 'active' | 'returned';
+    rentalId: number;
+    userId: string;
+    bookId: number;
+    date: string;
+    status: string;
+    user?: User;
+    book?: Book;
 }

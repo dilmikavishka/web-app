@@ -23,8 +23,6 @@ import {
     People as PeopleIcon,
     MenuBook as BookIcon,
     History as HistoryIcon,
-    Login as LoginIcon,
-    PersonAdd as SignUpIcon,
     Menu as MenuIcon,
     Close as CloseIcon
 } from '@mui/icons-material';
@@ -42,10 +40,6 @@ const Navbar = () => {
         { path: '/rentals', label: 'Rentals', icon: <HistoryIcon /> },
     ];
 
-    const authItems = [
-        { path: '/signin', label: 'Sign In', icon: <LoginIcon /> },
-        { path: '/signup', label: 'Sign Up', icon: <SignUpIcon /> },
-    ];
 
     const handleDrawerToggle = () => {
         setMobileOpen(!mobileOpen);
@@ -121,40 +115,6 @@ const Navbar = () => {
 
                 <Divider sx={{ my: 2, borderColor: '#ffebe5' }} />
 
-                {/* Auth Items */}
-                {authItems.map((item) => (
-                    <ListItem key={item.path} disablePadding>
-                        <ListItemButton
-                            component={RouterLink}
-                            to={item.path}
-                            onClick={handleDrawerToggle}
-                            sx={{
-                                py: 1.5,
-                                backgroundColor: isActivePath(item.path) ? 'rgba(255, 107, 53, 0.1)' : 'transparent',
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255, 107, 53, 0.05)',
-                                },
-                                borderLeft: isActivePath(item.path) ? '4px solid #ff6b35' : '4px solid transparent',
-                            }}
-                        >
-                            <ListItemIcon sx={{
-                                color: isActivePath(item.path) ? '#ff6b35' : '#4a5568',
-                                minWidth: 40
-                            }}>
-                                {item.icon}
-                            </ListItemIcon>
-                            <ListItemText
-                                primary={item.label}
-                                sx={{
-                                    color: isActivePath(item.path) ? '#ff6b35' : '#4a5568',
-                                    '& .MuiTypography-root': {
-                                        fontWeight: isActivePath(item.path) ? 600 : 400,
-                                    }
-                                }}
-                            />
-                        </ListItemButton>
-                    </ListItem>
-                ))}
             </List>
 
             <Box sx={{
@@ -242,36 +202,7 @@ const Navbar = () => {
                                     justifyContent: 'flex-end',
                                     width: { md: '200px' } // Same width as logo for balance
                                 }}>
-                                    {authItems.map((item) => (
-                                        <Button
-                                            key={item.path}
-                                            component={RouterLink}
-                                            to={item.path}
-                                            variant={item.label === 'Sign Up' ? 'contained' : 'outlined'}
-                                            startIcon={item.icon}
-                                            sx={{
-                                                ...(item.label === 'Sign Up' && {
-                                                    background: 'linear-gradient(135deg, #ff6b35 0%, #e54b1a 100%)',
-                                                    color: 'white',
-                                                    '&:hover': {
-                                                        background: 'linear-gradient(135deg, #e54b1a 0%, #ff6b35 100%)',
-                                                    }
-                                                }),
-                                                ...(item.label === 'Sign In' && {
-                                                    borderColor: '#ff6b35',
-                                                    color: '#ff6b35',
-                                                    '&:hover': {
-                                                        borderColor: '#e54b1a',
-                                                        background: 'rgba(255, 107, 53, 0.05)',
-                                                    }
-                                                }),
-                                                whiteSpace: 'nowrap',
-                                                minWidth: { md: '90px' }
-                                            }}
-                                        >
-                                            {item.label}
-                                        </Button>
-                                    ))}
+
                                 </Box>
                             </>
                         )}
