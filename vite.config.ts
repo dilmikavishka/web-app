@@ -1,18 +1,17 @@
-// vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 5173, // dev server port
     proxy: {
       '/api': {
-        target: 'http://34.160.54.179',
+        target: 'http://localhost:7000', // local backend IP + port
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path,
-      }
-    }
-  }
-})
+        rewrite: (path) => path.replace(/^\/api/, ''), // remove /api prefix
+      },
+    },
+  },
+});

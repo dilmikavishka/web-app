@@ -1,24 +1,20 @@
-import axios from "axios";
+import axios from 'axios';
 
 const apiClient = axios.create({
-    baseURL: import.meta.env.VITE_BASE_URL,
+    baseURL: import.meta.env.VITE_BASE_URL, // /api
     headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
     },
     timeout: 10000,
 });
-
 
 apiClient.interceptors.request.use(
     (config) => {
         console.log(`📤 ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
         return config;
     },
-    (error) => {
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
-
 
 apiClient.interceptors.response.use(
     (response) => {
