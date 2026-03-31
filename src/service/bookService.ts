@@ -1,7 +1,7 @@
 import apiClient from "../api/apiClient";
 import type { Book } from "../types";
 
-const BASE = "/api/v1/books";
+const BASE = "/v1/books";
 
 // GET all books
 export const getAllBooks = async (): Promise<Book[]> => {

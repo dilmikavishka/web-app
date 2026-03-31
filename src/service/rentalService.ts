@@ -1,7 +1,7 @@
 import apiClient from "../api/apiClient";
 import type { Rental } from "../types";
 
-const BASE = "/api/v1/rentals";
+const BASE = "/v1/rentals";
 
 // GET all rentals
 export const getAllRentals = async (): Promise<Rental[]> => {

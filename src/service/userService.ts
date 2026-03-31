@@ -2,7 +2,7 @@
 import apiClient from "../api/apiClient";
 import type { User } from "../types";
 
-const BASE = "/api/v1/users";
+const BASE = "/v1/users";
 
 // GET all users
 export const getAllUsers = async (): Promise<User[]> => {
